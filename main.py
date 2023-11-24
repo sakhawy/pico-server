@@ -43,11 +43,10 @@ class PicoTCPServer:
             with conn:
                 logger.info(f'Accepted connection from {addr}')
                 request_stream = conn.makefile('rb')
+                response_stream = conn.makefile('wb')
                 self.request_handler(
                     request_stream=request_stream,
-                    client_address=addr,
-                    client=conn,
-                    server=self.sock
+                    response_stream=response_stream,
                 )
             logger.info(f'Closed connection from {addr}')
 
@@ -59,22 +58,18 @@ class PicoTCPServer:
 
 class PicoHTTPRequestHandler:
     '''
-    Server static files as-is. Only supports GET and HEAD.
-    Any other method will return 405 except POST, which will return 403.
+    Serves static files as-is. Only supports GET and HEAD.
+    POST returns 403 FORBIDDEN. Other commands return 405 METHOD NOT ALLOWED.
 
-    The version is assumed to be HTTP/1.1.
+    Supports HTTP/1.1.
     '''
     def __init__(
         self, 
-        request_stream: io.BufferedIOBase, 
-        client_address: tuple[str, int],
-        client: socket.socket,
-        server: socket.socket
+        request_stream: io.BufferedIOBase,
+        response_stream: io.BufferedIOBase,
     ) -> None:
         self.request_stream = request_stream
-        self.client_address = client_address
-        self.server = server
-        self.client = client
+        self.response_stream = response_stream
         self.command = ''
         self.path = ''
         self.headers = {
@@ -95,16 +90,16 @@ class PicoHTTPRequestHandler:
         self._parse_request()
         
         if not self._validate_path():
-            return self._handle_404()
+            return self._return_404()
 
         if self.command not in ('GET', 'HEAD'):
-            return self._handle_405()
+            return self._return_405()
 
         if self.command == 'POST':
-            return self._handle_403()
+            return self._return_403()
         
-        method = getattr(self, f'handle_{self.command}') 
-        method()
+        command = getattr(self, f'handle_{self.command}') 
+        command()
 
     def handle_GET(self) -> None:
         '''
@@ -114,25 +109,27 @@ class PicoHTTPRequestHandler:
 
         with open(self.path, 'rb') as f:
             body = f.read()
-
-        self.client.sendall(body)
+        
+        self.response_stream.write(body)
+        self.response_stream.flush()
 
     def handle_HEAD(self) -> None:
         '''
         Writes headers to the socket.
         '''
-        # default to 200
+        # default to 200 OK
         self._write_response_line(200)
         self._write_headers(
             **{
                 'Content-Length': os.path.getsize(self.path)
             }
         )
+        self.response_stream.flush()
 
     def _write_response_line(self, status_code: int) -> None:
-        reponse_line = f'HTTP/1.1 {status_code} {HTTPStatus(status_code).phrase}'
+        reponse_line = f'HTTP/1.1 {status_code} {HTTPStatus(status_code).phrase}\r\n'
         logger.info(reponse_line.encode())
-        self.client.sendall(reponse_line.encode())
+        self.response_stream.write(reponse_line.encode())
 
     def _write_headers(self, *args, **kwargs) -> None:
         headers_copy = self.headers.copy()
@@ -141,9 +138,9 @@ class PicoHTTPRequestHandler:
             f'{k}: {v}' for k, v in headers_copy.items()
         )
         logger.info(header_lines.encode())
-        self.client.sendall(header_lines.encode())
+        self.response_stream.write(header_lines.encode())
         # mark the end of the headers
-        self.client.sendall(b'\r\n\r\n')
+        self.response_stream.write(b'\r\n\r\n')
 
     def _parse_request(self) -> None:
         # parse the request line
@@ -183,18 +180,18 @@ class PicoHTTPRequestHandler:
 
         return True 
 
-    def _handle_404(self) -> None:
+    def _return_404(self) -> None:
         '''NOT FOUND'''
         self._write_response_line(404)
         self._write_headers()
 
-    def _handle_405(self) -> None:
-        '''NON IMPLEMENTED COMMANDS'''
+    def _return_405(self) -> None:
+        '''METHOD NOT ALLOWED'''
         self._write_response_line(405)
         self._write_headers()
 
-    def _handle_403(self) -> None:
-        '''FORBIDDEN POST'''
+    def _return_403(self) -> None:
+        '''FORBIDDEN'''
         self._write_response_line(403)
         self._write_headers()
 
