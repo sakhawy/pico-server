@@ -569,7 +569,7 @@ Our file structure should sound something like:
 Running `python main.py` and then opening `http://127.0.0.1:8000` on browser should give us this result:
 ![hello_world_in_browser.png](hello_world_in_browser.png)
 
-You can find the full code here: 
+You can find the full code here: https://github.com/sakhawy/pico-server 
 
 ## Now what?
 
