@@ -92,11 +92,11 @@ class PicoHTTPRequestHandler:
         if not self._validate_path():
             return self._return_404()
 
-        if self.command not in ('GET', 'HEAD'):
-            return self._return_405()
-
         if self.command == 'POST':
             return self._return_403()
+
+        if self.command not in ('GET', 'HEAD'):
+            return self._return_405()
         
         command = getattr(self, f'handle_{self.command}') 
         command()

@@ -1,9 +1,10 @@
-As any Backend Engineer, I recently lost it to my urge to build an HTTP server from scratch. Honestly, this is the perfect chance for me to start writing about technical stuff. Since you're already here, how about joining me? Come on, grab a drink, I'll be waiting :D
+As any Software Engineer, I recently lost to my urge to build an HTTP server from scratch. Honestly, this is the perfect chance for me to start writing about technical stuff. Since you're already here, how about joining me? Come on, grab a drink, I'll be waiting : D
 
-Ok. Here's how we're doing this. We're taking a top-down approach. We'll start with 1 line of code and try to get as close to "scratch" as we can. We'll do that by replacing the layers of abstraction (out-of-the-box code) with our custom code. While doing that, we were discussing some theory. 
-I'll be using Python (I put "scratch" in double quotes, please don't kill me in my sleep, I promise it'll be fun!)
+Ok. Here's how we're doing this. We're taking a top-down approach. We'll start with 1 line of code then try to get as close to "scratch" as we can. We'll do that by replacing the layers of abstraction (out-of-the-box code) with our custom code. While doing that, we will be discussing some theory.
 
-# Covered Concepts
+Oh, and BTW, We'll be using Python (please don't kill me in my sleep, I put "scratch" in double quotes, I promise it'll be fun!)
+
+# Concepts Covered 
 
 * Berkeley sockets
 * TCP connections
@@ -15,9 +16,10 @@ I'll be using Python (I put "scratch" in double quotes, please don't kill me in 
 
 1. We're working with HTTP/1.1.
 1. No caching: The server won't handle caching.
+1. No HTTPS: The server won't handle encryption.
 1. One connection at a time: The server won't handle concurrent connections.
-1. Short-lived connections: The server will end the connection once the files are transferred.
-1. Only HEAD and GET: The server serves static files as-is!
+1. Only short-lived connections: The server will end the connection once the files are transferred.
+1. Only HEAD and GET requests: The server only serves static files as-is.
 
 # Sections
 
@@ -25,18 +27,18 @@ I'll be using Python (I put "scratch" in double quotes, please don't kill me in 
 1. Removing a layer of abstraction: Using `http.server.SimpleHTTPRequestHandler` and `socketserver.TCPServer`
 1. Writing our custom TCP server (`PicoTCPServer`): Replacing `socketserver.TCPServer`
 1. Writing our custom HTTP handler (`PicoHTTPRequestHandler`): Replacing `http.server.SimpleHTTPRequestHandler`
-1. Finale!
+1. The finale!
 
 # HTTP server with one line of code: Using `http.server`
 
-Python has this ready out-of-the-box standard library that we can use to create our server: `http`. To create an HTTP server with `http.server` simply run this command: 
+Python has a standard library that we can use to create a server out-of-the-box: http. So, to create an HTTP server with it, simply run this command:
 
 ````bash
 $ python -m http.server 8000  # i know, this isn't python code, shut up >:-(
 # Serving HTTP on 0.0.0.0 port 8000 (http://0.0.0.0:8000/) ...
 ````
 
-Now if you want to know what this does you can read [this](https://github.com/python/cpython/blob/d59feb5dbe5395615d06c30a95e6a6a9b7681d4d/Lib/http/server.py#L1280) (maybe after you finish this article cause we will talk about how that code works).
+Now if you want to know what this does you can read [this](https://github.com/python/cpython/blob/d59feb5dbe5395615d06c30a95e6a6a9b7681d4d/Lib/http/server.py#L1280) (maybe after you finish this article cause we'll be talking about how that code works in a minute).
 
 # Removing a layer of abstraction: Using `http.server.SimpleHTTPRequestHandler` and `socketserver.TCPServer`
 
@@ -67,7 +69,7 @@ with socketserver.TCPServer(('0.0.0.0', 8000), handler) as http:
     http.serve_forever()
 ````
 
-I think you may already have gotten an idea about what that code is doing. The code can be boiled down to 3 lines:
+I think you may already have gotten an idea about what that code is doing. It can be boiled down to 3 lines:
 
 * `handler = http.server.SimpleHTTPRequestHandler`
 * `with socketserver.TCPServer(('0.0.0.0', 8000), handler) as http:`
@@ -79,7 +81,7 @@ Let's keep that in mind and take a quick tangent to talk about the HTTP request 
 
 ## HTTP Request/Response Life-cycle
 
-We always talk about HTTP and the client-server architecture. So, how does the request travel from the client to our server and from our server to the client? The answer is **Berkeley Sockets** (AKA: BSD Sockets, POSIX Sockets, Internet Socket). 
+We always talk about HTTP and the client-server architecture. So, how does the request travel from the client to the server and from the server to the client? The answer is **Berkeley Sockets** (AKA: BSD Sockets, POSIX Sockets, Internet Socket). 
 
 A Network Socket is a 2-way communication channel or an endpoint for sending and receiving data in a network. 
 
@@ -89,13 +91,15 @@ Those sockets come in different flavors. We're interested in the TCP ones. The H
 1. Orderly delivered.
    So what is sent is what is received in the exact order.
 
-Now back to the Berkeley Sockets. Berkeley Socket is an API for Network Socket. Let's take a quick look at how they operate in the client-server architecture:
+Now back to the Berkeley Sockets. 
+
+Berkeley Socket is an API for Network Socket. Let's take a quick look at how they operate in the client-server architecture:
 ![socket_connection.png](socket_connection.png)
 
-1. Server socket will be created, and bidden to a port. 
-1. The server socket will then be in the listening state. Any incoming connections at the point will be placed in something called the "accept queue". Those connections will be waiting to be accepted by the server socket. 
+1. The server socket will be created, and bidden to a port. 
+1. The server socket will then be in the listening state. Any incoming connections at this point will be placed in something called the "accept queue". Those connections will be waiting to be accepted by the server socket. 
 1. The server will accept the connection. `.accept()` awaits for connections. It will return a new socket instance that will be used by the server to communicate with the client.
-1. A client socket will be created, it will connect to the server socket. (3-way handshake will be initiated on `.connect()`).
+1. A client socket will be created, it will connect to the server socket. (A 3-way handshake will be initiated on `.connect()`).
 1. The client sends a request.
 1. The server reads the request.
 1. The server sends back the response.
@@ -103,7 +107,7 @@ Now back to the Berkeley Sockets. Berkeley Socket is an API for Network Socket. 
 1. The server closes the connection.
 
  > 
- > **Side note**: The Berkeley Socket is designed to be concurrent. A server socket or a listening socket can accept multiple client sockets. `.listen()` takes an argument called `backlog` which is the maximum number of unaccepted connections in the accepted queue. Connections that come after that limit is reached will be refused.
+ > **Side note**: Berkeley Sockets are designed to be concurrent. A server socket or a listening socket can accept multiple client sockets. `.listen()` takes an argument called `backlog` which is the maximum number of connection in the accepted queue. Connections that come after that limit is reached will be refused.
 
 To make sure we're familiar with how sockets communicate we'll create a simple server-client arch in which the server echos messages sent by the client:
 
@@ -152,7 +156,7 @@ Now that we're familiar with how sockets communicate, we can start writing our o
 
 Anyways, we need something that:
 
-* Takes a socket address (IP and port pair) and an HTTP handler (`SimpleHTTPRequestHandler`) as arguments.
+* Takes a socket address (IP address and port number pair) and an HTTP handler (`SimpleHTTPRequestHandler`) as arguments.
 * Creates a listening socket on the given socket address and accepts connections from clients (e.g. browser).
 * Serves the response and closes the connection to the client.
 
@@ -205,6 +209,19 @@ class PicoTCPServer:
   * `conn.makefile('wb')` creates a file-like object but this time for writing the response to the client socket (similar to `socket.send()`)
 * `__enter__()` and `__exit__()` are a syntactic sugar for python to use the `with` context manager. When we enter the `with` block, `PicoTCPServer` is instantiated. When we leave it, `__exit__()` is called to close the server socket we created.
 
+
+> 
+> **SO_REUSEADDR**: 
+> Indicates that the rules used in validating addresses
+supplied in a bind(2) call ***should allow reuse of local
+addresses***.  For AF_INET sockets this means that ***a socket
+may bind, except when there is an active listening socket
+bound to the address.***  When the listening socket is bound
+to INADDR_ANY with a specific port then it is not possible
+to bind to this port for any local address.  Argument is
+an integer boolean flag.
+
+
 ## Serving HTTP Response
 
 At the TCP level, to our server, there's no "request". It's just a bunch of bytes being transmitted. Those bytes encoded and may be encrypted. So we may have to decrypt it and decode it to get our beautiful HTTP request plain text:
@@ -221,7 +238,7 @@ But since we're not doing any encryption or encoding here, we can assume that we
 
 # Writing our custom HTTP handler (`PicoHTTPRequestHandler`): Replacing `http.server.SimpleHTTPRequestHandler`
 
-Alright, the first step is done. We have our plain-text HTTP request. You may have noticed we skipped something while writing `PicoTCPServer`: The HTTP handler. We used `http.server`  which provided us with something working right out of the box called `SimpleHTTPRequestHandler`.
+Alright, the first step is done. We have our plain-text HTTP request. You may have noticed we skipped talking about something while writing `PicoTCPServer`: The HTTP handler. We used `http.server` which provided us with something working right out of the box called `SimpleHTTPRequestHandler`.
 
 The HTTP handler's responsibility is to parse the HTTP request and serve the appropriate response. The HTTP request is parsed according to the HTTP standards, and so is the served response.
 
@@ -255,8 +272,7 @@ class PicoHTTPRequestHandler:
 
 ````
 
- > 
- > I found a really good explanation of how that's done `SimpleHTTPRequestHandler`'s parent class(`BaseHTTPRequestHandler`):
+[There's a really good explanation](https://github.com/python/cpython/blob/d59feb5dbe5395615d06c30a95e6a6a9b7681d4d/Lib/http/server.py#L148) of how that's done in `SimpleHTTPRequestHandler`'s parent class(`BaseHTTPRequestHandler`):
 
 ````
     """HTTP request handler base class.
@@ -340,6 +356,7 @@ class PicoHTTPRequestHandler:
 ### 1. The request
 
 ![HTTP_request.png](HTTP_request.png)
+
 That means the handler we will create must parse requests following that structure.
 
  > 
@@ -432,11 +449,11 @@ class PicoHTTPHandler:
         if not self._validate_path():
             return self._return_404()
 
-        if self.command not in ('GET', 'HEAD'):
-            return self._return_405()
-
         if self.command == 'POST':
             return self._return_403()
+
+        if self.command not in ('GET', 'HEAD'):
+            return self._return_405()
 
 	def _validate_path(self) -> bool:
 		'''
@@ -472,7 +489,7 @@ class PicoHTTPHandler:
         self._write_headers()
 ````
 
-Our eyes are on `handler()`now:
+All the eyes should be on `handler()`now:
 
 * After parsing the request, we call `_validate_path()` which checks if the requested file is in our server directory. If the path was a directory then we need to look for the `index.html` file in the directory.
 * If the requested file is not found we return a 404 NOT FOUND response.
@@ -542,7 +559,7 @@ class PicoHTTPHanlder:
   * Calls `handle_HEAD` since GET is HEAD with no data.
   * Writes the data to `self.response_stream` then flushes it.
 
-# Finale!
+# The finale!
 
 Now for a moment of truth, we will finally serve this bad boy:
 
@@ -559,7 +576,7 @@ Now for a moment of truth, we will finally serve this bad boy:
 </html>
 ````
 
-Our file structure should sound something like:
+Our file structure should look something like this:
 
 ````bash
 |_ main.py
@@ -573,7 +590,7 @@ You can find the full code here: https://github.com/sakhawy/pico-server
 
 ## Now what?
 
-I guess a question or two crossed your mind while reading this. I encourage you to mess around with the code and try to answer those questions yourself. 
+I guess a question or two may have crossed your mind while reading this. I encourage you to mess around with the code and try to answer those questions yourself. 
 
 The server we created is very primitive and has a lot of issues:
 
@@ -586,4 +603,4 @@ The server we created is very primitive and has a lot of issues:
   
 The list is long! You can also read more about the protocol. [MDN](https://developer.mozilla.org/en-US/docs/Web/HTTP/Basics_of_HTTP) is a great resource for that.
 
-Well, I hope you had fun reading this. Thanks a lot for reaching this point and have a nice day!
+Well, I hope you had fun reading this. Thanks a lot for getting to this point and have a nice day!
